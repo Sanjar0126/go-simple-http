@@ -41,7 +41,7 @@ A simple HTTP server implementation in pure Go — no external routers or framew
   - Parse `Cookie:` headers from requests.
   - Support `Set-Cookie` in responses.
 - [ ] **Important Headers**
-  - Implement: `Host`, `User-Agent`, `Content-Type`, `Content-Length`.
+  - Implement: `Host`, `User-Agent`.
   - Optional: `ETag`, `If-Modified-Since`, `Cache-Control`.
 
 ---
