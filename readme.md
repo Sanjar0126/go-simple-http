@@ -1,11 +1,11 @@
 # go-simple-http
 
-A simple HTTP server implementation in pure Go — no external routers or frameworks required.
+A simple HTTP server implementation using Go net package's tcp.
 
 ## ✅ Minimal HTTP/1.0 Server (Done)
 - Accept TCP connections.
 - Parse the HTTP request line (`GET /path HTTP/1.0`).
-- Send static responses with status line, headers, and body.
+- Send response using handler function with status line, headers, and body.
 
 ---
 
@@ -41,7 +41,7 @@ A simple HTTP server implementation in pure Go — no external routers or framew
   - Parse `Cookie:` headers from requests.
   - Support `Set-Cookie` in responses.
 - [ ] **Important Headers**
-  - Implement: `Host`, `User-Agent`, `Content-Type`, `Content-Length`.
+  - Implement: `Host`, `User-Agent`.
   - Optional: `ETag`, `If-Modified-Since`, `Cache-Control`.
 
 ---
