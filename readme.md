@@ -1,15 +1,6 @@
 # go-simple-http
 
-A simple HTTP server implementation in pure Go — no external routers or frameworks required. Perfect for learning, hacking, or building minimal HTTP services.
-
----
-
-## 🚀 Features
-
-* Lightweight and minimal
-* Custom request/response handler
-* Educational and framework-free
-* No dependencies
+A simple HTTP server implementation in pure Go — no external routers or frameworks required.
 
 ---
 

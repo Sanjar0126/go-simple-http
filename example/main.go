@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/Sanjar0126/go-simple-http/httpx"
 )
@@ -13,11 +14,12 @@ func main() {
 
 	server.Handler = func(req *httpx.HTTPRequest) *httpx.HTTPResponse {
 		fmt.Printf("Custom handler: %s %s\n", req.Method, req.Path)
-		body := fmt.Sprintf("Hello, you requested %s", req.Path)
+		fmt.Println(req.Body)
+		body := fmt.Sprintf("Hello, you requested %s %s", req.Path, req.Method)
 		return &httpx.HTTPResponse{
-			Version:    "HTTP/1.1",
-			StatusCode: 200,
-			StatusText: "OK",
+			Version:    httpx.HTTP11Version,
+			StatusCode: http.StatusOK,
+			StatusText: http.StatusText(http.StatusOK),
 			Headers: map[string]string{
 				"Content-Type":   "text/plain",
 				"Content-Length": fmt.Sprintf("%d", len(body)),

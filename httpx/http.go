@@ -177,7 +177,7 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 
 func (s *HTTPServer) sendErrorResponse(conn net.Conn, statusCode int, statusText string) {
 	response := &HTTPResponse{
-		Version:    "HTTP/1.1",
+		Version:    HTTP11Version,
 		StatusCode: statusCode,
 		StatusText: statusText,
 		Headers: map[string]string{
