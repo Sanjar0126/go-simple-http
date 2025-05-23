@@ -70,7 +70,7 @@ func (s *HTTPServer) parseRequest(data string) (*HTTPRequest, error) {
 
 		parts := strings.SplitN(line, ":", 2)
 		if len(parts) == 2 {
-			key := strings.TrimSpace(parts[0])
+			key := strings.ToLower(strings.TrimSpace(parts[0]))
 			value := strings.TrimSpace(parts[1])
 			req.Headers[key] = value
 		}
