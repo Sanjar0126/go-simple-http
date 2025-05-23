@@ -5,7 +5,7 @@ A simple HTTP server implementation using Go net package's tcp.
 ## ✅ Minimal HTTP/1.0 Server (Done)
 - Accept TCP connections.
 - Parse the HTTP request line (`GET /path HTTP/1.0`).
-- Send static responses with status line, headers, and body.
+- Send response using handler function with status line, headers, and body.
 
 ---
 
