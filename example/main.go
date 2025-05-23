@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"go-simple-http/httpx"
+
+	"github.com/Sanjar0126/go-simple-http/httpx"
 )
 
 func main() {
