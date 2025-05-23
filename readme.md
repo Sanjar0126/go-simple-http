@@ -1,6 +1,6 @@
 # go-simple-http
 
-A simple HTTP server implementation in pure Go — no external routers or frameworks required.
+A simple HTTP server implementation using Go net package's tcp.
 
 ## ✅ Minimal HTTP/1.0 Server (Done)
 - Accept TCP connections.
