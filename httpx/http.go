@@ -193,6 +193,8 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 			}
 
 			if contentLength > 0 {
+				conn.SetReadDeadline(time.Now().Add(s.readTimeout + time.Duration(contentLength/1024)*time.Second))
+
 				body := make([]byte, contentLength)
 				_, err := io.ReadFull(reader, body)
 				if err != nil {
