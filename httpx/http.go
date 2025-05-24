@@ -32,13 +32,32 @@ type HTTPServer struct {
 	addr string
 	port string
 
+	maxRequestSize int
+	maxHeaderSize  int
+
 	Handler HandlerFunc
 }
 
-func NewHTTPServer(addr, port string) *HTTPServer {
+type HTTPServerConfig struct {
+	Addr           string
+	Port           string
+	MaxRequestSize int
+	MaxHeaderSize  int
+}
+
+func NewHTTPServer(cfg HTTPServerConfig) *HTTPServer {
+	if cfg.MaxRequestSize == 0 {
+		cfg.MaxRequestSize = DefaultMaxRequestSize
+	}
+	if cfg.MaxHeaderSize == 0 {
+		cfg.MaxHeaderSize = DefaultMaxHeaderSize
+	}
+
 	return &HTTPServer{
-		addr: addr,
-		port: port,
+		addr:           cfg.Addr,
+		port:           cfg.Port,
+		maxRequestSize: cfg.MaxRequestSize,
+		maxHeaderSize:  cfg.MaxHeaderSize,
 	}
 }
 

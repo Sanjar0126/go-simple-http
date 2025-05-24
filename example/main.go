@@ -8,7 +8,10 @@ import (
 )
 
 func main() {
-	server := httpx.NewHTTPServer("0.0.0.0", "8080")
+	server := httpx.NewHTTPServer(httpx.HTTPServerConfig{
+		Addr: "localhost",
+		Port: "8080",
+	})
 
 	fmt.Println("Starting simple HTTP server...")
 
