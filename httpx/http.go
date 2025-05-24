@@ -143,6 +143,8 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 	var requestData strings.Builder
 
+	headerSize := 0
+
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
@@ -154,7 +156,20 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 			return
 		}
 
+		headerSize += len(line)
+		if headerSize > s.maxHeaderSize {
+			fmt.Println("Header size exceeded limit")
+			s.sendErrorResponse(conn, http.StatusRequestHeaderFieldsTooLarge, "Request header too large")
+			return
+		}
+
 		requestData.WriteString(line)
+
+		if requestData.Len() > s.maxRequestSize {
+			fmt.Println("Request size exceeded limit")
+			s.sendErrorResponse(conn, http.StatusRequestEntityTooLarge, "Request too large")
+			return
+		}
 
 		if line == "\r\n" {
 			contentLength := 0
