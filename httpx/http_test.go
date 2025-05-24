@@ -11,7 +11,10 @@ import (
 
 func TestParseRequest_BasicGET(t *testing.T) {
 	raw := "GET /hello HTTP/1.1\r\nHost: localhost\r\n\r\n"
-	server := NewHTTPServer("127.0.0.1", "0")
+	server := NewHTTPServer(HTTPServerConfig{
+		Addr: "localhost",
+		Port: "8080",
+	})
 
 	req, err := server.parseRequest(raw)
 	if err != nil {
@@ -29,7 +32,10 @@ func TestParseRequest_BasicGET(t *testing.T) {
 
 func TestParseRequest_WithBody(t *testing.T) {
 	raw := "POST /submit HTTP/1.1\r\nHost: localhost\r\nContent-Length: 11\r\n\r\nHello World"
-	server := NewHTTPServer("127.0.0.1", "0")
+	server := NewHTTPServer(HTTPServerConfig{
+		Addr: "localhost",
+		Port: "8080",
+	})
 
 	req, err := server.parseRequest(raw)
 	if err != nil {
@@ -73,7 +79,10 @@ func TestHTTPServer_HandlerInvocation(t *testing.T) {
 	defer listener.Close()
 
 	port := listener.Addr().(*net.TCPAddr).Port
-	server := NewHTTPServer("127.0.0.1", strconv.Itoa(port))
+	server := NewHTTPServer(HTTPServerConfig{
+		Addr: "localhost",
+		Port: strconv.Itoa(port),
+	})
 
 	handlerCalled := false
 	server.Handler = func(req *HTTPRequest) *HTTPResponse {
