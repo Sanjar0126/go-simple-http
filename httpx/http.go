@@ -234,10 +234,11 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 		return
 	}
 
+	conn.SetWriteDeadline(time.Now().Add(s.writeTimeout))
+
 	_, err = conn.Write([]byte(response.formatResponse()))
 	if err != nil {
 		fmt.Println("Error writing to client:", err)
-		s.sendErrorResponse(conn, http.StatusInternalServerError, "Error writing to client")
 		return
 	}
 }
