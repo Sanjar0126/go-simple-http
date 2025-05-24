@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type HTTPRequest struct {
@@ -35,6 +36,9 @@ type HTTPServer struct {
 	maxRequestSize int
 	maxHeaderSize  int
 
+	readTimeout  time.Duration
+	writeTimeout time.Duration
+
 	Handler HandlerFunc
 }
 
@@ -43,6 +47,8 @@ type HTTPServerConfig struct {
 	Port           string
 	MaxRequestSize int
 	MaxHeaderSize  int
+	ReadTimeout    time.Duration
+	WriteTimeout   time.Duration
 }
 
 func NewHTTPServer(cfg HTTPServerConfig) *HTTPServer {
@@ -53,11 +59,20 @@ func NewHTTPServer(cfg HTTPServerConfig) *HTTPServer {
 		cfg.MaxHeaderSize = DefaultMaxHeaderSize
 	}
 
+	if cfg.ReadTimeout == 0 {
+		cfg.ReadTimeout = 30 * time.Second
+	}
+	if cfg.WriteTimeout == 0 {
+		cfg.WriteTimeout = 30 * time.Second
+	}
+
 	return &HTTPServer{
 		addr:           cfg.Addr,
 		port:           cfg.Port,
 		maxRequestSize: cfg.MaxRequestSize,
 		maxHeaderSize:  cfg.MaxHeaderSize,
+		readTimeout:    cfg.ReadTimeout,
+		writeTimeout:   cfg.WriteTimeout,
 	}
 }
 
@@ -119,6 +134,10 @@ func (r *HTTPResponse) formatResponse() string {
 
 func (s *HTTPServer) handleConnection(conn net.Conn) {
 	defer conn.Close()
+
+	conn.SetReadDeadline(time.Now().Add(s.readTimeout))
+	conn.SetWriteDeadline(time.Now().Add(s.writeTimeout))
+
 	fmt.Println("Client connected:", conn.RemoteAddr())
 
 	reader := bufio.NewReader(conn)
