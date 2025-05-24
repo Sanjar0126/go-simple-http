@@ -208,6 +208,12 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 		}
 	}
 
+	if requestData.Len() > s.maxRequestSize {
+		fmt.Println("Final request size exceeded limit")
+		s.sendErrorResponse(conn, http.StatusRequestEntityTooLarge, "Request too large")
+		return
+	}
+
 	request, err := s.parseRequest(requestData.String())
 	if err != nil {
 		fmt.Printf("Error parsing request: %v\n", err)
