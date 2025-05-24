@@ -186,6 +186,12 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 				}
 			}
 
+			if contentLength > s.maxRequestSize-requestData.Len() {
+				fmt.Println("Content-Length exceeds remaining request size limit")
+				s.sendErrorResponse(conn, http.StatusRequestEntityTooLarge, "Request body too large")
+				return
+			}
+
 			if contentLength > 0 {
 				body := make([]byte, contentLength)
 				_, err := io.ReadFull(reader, body)
