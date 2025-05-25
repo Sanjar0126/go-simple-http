@@ -26,6 +26,9 @@ func main() {
 		if safeName == "" {
 			safeName = "root"
 		}
+
+		os.Chdir("temp")
+
 		filename := fmt.Sprintf("%s_%d", safeName, time.Now().UnixNano())
 		file, err := os.Create(filename)
 		if err != nil {
