@@ -2,6 +2,7 @@ package httpx
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -16,7 +17,9 @@ type HTTPRequest struct {
 	Path    string
 	Version string
 	Headers map[string]string
-	Body    string
+
+	Body     io.Reader
+	BodySize int64
 }
 
 type HTTPResponse struct {
@@ -24,7 +27,9 @@ type HTTPResponse struct {
 	StatusCode int
 	StatusText string
 	Headers    map[string]string
-	Body       string
+
+	Body       io.Reader 
+	BodySize   int64
 }
 
 type HandlerFunc func(*HTTPRequest) *HTTPResponse
@@ -76,13 +81,30 @@ func NewHTTPServer(cfg HTTPServerConfig) *HTTPServer {
 	}
 }
 
-func (s *HTTPServer) parseRequest(data string) (*HTTPRequest, error) {
-	lines := strings.Split(data, "\r\n")
+func (s *HTTPServer) parseRequest(reader *bufio.Reader) (*HTTPRequest, error) {
+	var headerBuf bytes.Buffer
+	
+	for {
+		line, err := reader.ReadBytes('\n')
+		if err != nil {
+			return nil, fmt.Errorf("error reading headers: %v", err)
+		}
+		
+		headerBuf.Write(line)
+		
+		if bytes.Equal(line, []byte("\r\n")) {
+			break
+		}
+	}
+	
+	headerData := headerBuf.Bytes()
+	lines := bytes.Split(headerData, []byte("\r\n"))
+	
 	if len(lines) < 1 {
 		return nil, fmt.Errorf("invalid request format")
 	}
 
-	requestLine := strings.Fields(lines[0])
+	requestLine := strings.Fields(string(lines[0]))
 	if len(requestLine) != 3 {
 		return nil, fmt.Errorf("invalid request line")
 	}
@@ -92,13 +114,12 @@ func (s *HTTPServer) parseRequest(data string) (*HTTPRequest, error) {
 		Path:    requestLine[1],
 		Version: requestLine[2],
 		Headers: make(map[string]string),
+		Body:    reader, 
 	}
 
-	bodyStart := -1
-	for i := 1; i < len(lines); i++ {
-		line := lines[i]
+	for i := 1; i < len(lines)-1; i++ { 
+		line := string(lines[i])
 		if line == "" {
-			bodyStart = i + 1
 			break
 		}
 
@@ -107,11 +128,13 @@ func (s *HTTPServer) parseRequest(data string) (*HTTPRequest, error) {
 			key := strings.ToLower(strings.TrimSpace(parts[0]))
 			value := strings.TrimSpace(parts[1])
 			req.Headers[key] = value
+			
+			if key == "content-length" {
+				if length, err := strconv.ParseInt(value, 10, 64); err == nil {
+					req.BodySize = length
+				}
+			}
 		}
-	}
-
-	if bodyStart > 0 && bodyStart < len(lines) {
-		req.Body = strings.Join(lines[bodyStart:], "\r\n")
 	}
 
 	return req, nil
