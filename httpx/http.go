@@ -188,12 +188,13 @@ func (r *HTTPResponse) writeToConnection(conn net.Conn) error {
 	if r.Body != nil {
 		if r.BodySize >= 0 {
 			// direct copy for fixed-length body
-			written, err := io.Copy(conn, r.Body)
+			_, err := io.Copy(conn, r.Body)
 			if err != nil {
 				return fmt.Errorf("error streaming body: %v", err)
 			}
-			fmt.Printf("Streamed %d bytes\n", written)
+			fmt.Printf("Streaming fixed-length body of size %d bytes\n", r.BodySize)
 		} else {
+			fmt.Println("Streaming chunked body")
 			err := r.writeChunkedBody(conn)
 			if err != nil {
 				return fmt.Errorf("error writing chunked body: %v", err)
@@ -258,9 +259,6 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 		s.sendErrorResponse(conn, http.StatusInternalServerError, "No handler defined")
 		return
 	}
-
-	fmt.Printf("Received streaming %s request for %s (body length: %d)\n",
-		request.Method, request.Path, request.BodySize)
 
 	response := s.Handler(request)
 	if response == nil {
