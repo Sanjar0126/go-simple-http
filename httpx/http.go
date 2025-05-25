@@ -140,10 +140,9 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 
 	fmt.Println("Client connected:", conn.RemoteAddr())
 
-	limitedReader := io.LimitReader(conn, int64(s.maxRequestSize))
-	reader := bufio.NewReader(limitedReader)
-
+	reader := bufio.NewReader(conn)
 	var requestData strings.Builder
+
 	headerSize := 0
 
 	for {
@@ -166,11 +165,17 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 
 		requestData.WriteString(line)
 
+		if int64(requestData.Len()) > s.maxRequestSize {
+			fmt.Println("Request size exceeded limit")
+			s.sendErrorResponse(conn, http.StatusRequestEntityTooLarge, "Request too large")
+			return
+		}
+
 		if line == "\r\n" {
 			contentLength := 0
 			headerLines := strings.Split(requestData.String(), "\r\n")
 			for _, headerLine := range headerLines {
-				if strings.HasPrefix(strings.ToLower(headerLine), "content-length:") {
+				if strings.HasPrefix(headerLine, "Content-Length:") {
 					parts := strings.SplitN(headerLine, ":", 2)
 					if len(parts) == 2 {
 						if length, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil {
@@ -181,15 +186,19 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 				}
 			}
 
+			if int64(contentLength) > s.maxRequestSize-int64(requestData.Len()) {
+				fmt.Println("Content-Length exceeds remaining request size limit")
+				s.sendErrorResponse(conn, http.StatusRequestEntityTooLarge, "Request body too large")
+				return
+			}
+
 			if contentLength > 0 {
+				conn.SetReadDeadline(time.Now().Add(s.readTimeout + time.Duration(contentLength/1024)*time.Second))
+
 				body := make([]byte, contentLength)
 				_, err := io.ReadFull(reader, body)
 				if err != nil {
-					if err == io.ErrUnexpectedEOF {
-						s.sendErrorResponse(conn, http.StatusRequestEntityTooLarge, "Request too large")
-					} else {
-						fmt.Printf("Error reading request body: %v\n", err)
-					}
+					fmt.Printf("Error reading request body: %v\n", err)
 					return
 				}
 				requestData.Write(body)
