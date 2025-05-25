@@ -28,8 +28,8 @@ type HTTPResponse struct {
 	StatusText string
 	Headers    map[string]string
 
-	Body       io.Reader 
-	BodySize   int64
+	Body     io.Reader
+	BodySize int64
 }
 
 type HandlerFunc func(*HTTPRequest) *HTTPResponse
@@ -83,23 +83,23 @@ func NewHTTPServer(cfg HTTPServerConfig) *HTTPServer {
 
 func (s *HTTPServer) parseRequest(reader *bufio.Reader) (*HTTPRequest, error) {
 	var headerBuf bytes.Buffer
-	
+
 	for {
 		line, err := reader.ReadBytes('\n')
 		if err != nil {
 			return nil, fmt.Errorf("error reading headers: %v", err)
 		}
-		
+
 		headerBuf.Write(line)
-		
+
 		if bytes.Equal(line, []byte("\r\n")) {
 			break
 		}
 	}
-	
+
 	headerData := headerBuf.Bytes()
 	lines := bytes.Split(headerData, []byte("\r\n"))
-	
+
 	if len(lines) < 1 {
 		return nil, fmt.Errorf("invalid request format")
 	}
@@ -114,10 +114,10 @@ func (s *HTTPServer) parseRequest(reader *bufio.Reader) (*HTTPRequest, error) {
 		Path:    requestLine[1],
 		Version: requestLine[2],
 		Headers: make(map[string]string),
-		Body:    reader, 
+		Body:    reader,
 	}
 
-	for i := 1; i < len(lines)-1; i++ { 
+	for i := 1; i < len(lines)-1; i++ {
 		line := string(lines[i])
 		if line == "" {
 			break
@@ -128,7 +128,7 @@ func (s *HTTPServer) parseRequest(reader *bufio.Reader) (*HTTPRequest, error) {
 			key := strings.ToLower(strings.TrimSpace(parts[0]))
 			value := strings.TrimSpace(parts[1])
 			req.Headers[key] = value
-			
+
 			if key == "content-length" {
 				if length, err := strconv.ParseInt(value, 10, 64); err == nil {
 					req.BodySize = length
@@ -140,19 +140,27 @@ func (s *HTTPServer) parseRequest(reader *bufio.Reader) (*HTTPRequest, error) {
 	return req, nil
 }
 
-func (r *HTTPResponse) formatResponse() string {
-	var response strings.Builder
-
-	response.WriteString(fmt.Sprintf("%s %d %s\r\n", r.Version, r.StatusCode, r.StatusText))
-
-	for key, value := range r.Headers {
-		response.WriteString(fmt.Sprintf("%s: %s\r\n", key, value))
+func (r *HTTPResponse) writeToConnection(conn net.Conn) error {
+	if _, err := fmt.Fprintf(conn, "%s %d %s\r\n", r.Version, r.StatusCode, r.StatusText); err != nil {
+		return err
 	}
 
-	response.WriteString("\r\n")
-	response.WriteString(r.Body)
+	for key, value := range r.Headers {
+		if _, err := fmt.Fprintf(conn, "%s: %s\r\n", key, value); err != nil {
+			return err
+		}
+	}
 
-	return response.String()
+	if _, err := conn.Write([]byte("\r\n")); err != nil {
+		return err
+	}
+
+	if r.Body != nil {
+		_, err := io.Copy(conn, r.Body)
+		return err
+	}
+
+	return nil
 }
 
 func (s *HTTPServer) handleConnection(conn net.Conn) {
@@ -164,92 +172,20 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 	fmt.Println("Client connected:", conn.RemoteAddr())
 
 	reader := bufio.NewReader(conn)
-	var requestData strings.Builder
 
-	headerSize := 0
-
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-
-			fmt.Println("Error reading from client:", err)
-			return
-		}
-
-		headerSize += len(line)
-		if int64(headerSize) > s.maxHeaderSize {
-			fmt.Println("Header size exceeded limit")
-			s.sendErrorResponse(conn, http.StatusRequestHeaderFieldsTooLarge, "Request header too large")
-			return
-		}
-
-		requestData.WriteString(line)
-
-		if int64(requestData.Len()) > s.maxRequestSize {
-			fmt.Println("Request size exceeded limit")
-			s.sendErrorResponse(conn, http.StatusRequestEntityTooLarge, "Request too large")
-			return
-		}
-
-		if line == "\r\n" {
-			contentLength := 0
-			headerLines := strings.Split(requestData.String(), "\r\n")
-			for _, headerLine := range headerLines {
-				if strings.HasPrefix(strings.ToLower(headerLine), "content-length:") {
-					parts := strings.SplitN(headerLine, ":", 2)
-					if len(parts) == 2 {
-						if length, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil {
-							contentLength = length
-						}
-					}
-					break
-				}
-			}
-
-			if int64(contentLength) > s.maxRequestSize-int64(requestData.Len()) {
-				fmt.Println("Content-Length exceeds remaining request size limit")
-				s.sendErrorResponse(conn, http.StatusRequestEntityTooLarge, "Request body too large")
-				return
-			}
-
-			if contentLength > 0 {
-				conn.SetReadDeadline(time.Now().Add(s.readTimeout + time.Duration(contentLength/1024)*time.Second))
-
-				body := make([]byte, contentLength)
-				_, err := io.ReadFull(reader, body)
-				if err != nil {
-					fmt.Printf("Error reading request body: %v\n", err)
-					return
-				}
-				requestData.Write(body)
-			}
-
-			break
-		}
-	}
-
-	if int64(requestData.Len()) > s.maxRequestSize {
-		fmt.Println("Final request size exceeded limit")
-		s.sendErrorResponse(conn, http.StatusRequestEntityTooLarge, "Request too large")
-		return
-	}
-
-	request, err := s.parseRequest(requestData.String())
+	request, err := s.parseRequest(reader)
 	if err != nil {
-		fmt.Printf("Error parsing request: %v\n", err)
+		fmt.Printf("Error parsing streaming request: %v\n", err)
 		s.sendErrorResponse(conn, http.StatusBadRequest, "Bad Request")
 		return
 	}
 
-	if s.Handler == nil {
-		s.sendErrorResponse(conn, http.StatusInternalServerError, "No handler defined")
-		return
+	if request.BodySize > 0 {
+		request.Body = io.LimitReader(request.Body, min(request.BodySize, s.maxRequestSize))
 	}
 
-	fmt.Printf("Received %s request for %s\n", request.Method, request.Path)
+	fmt.Printf("Received %s request for %s (body: %d bytes)\n",
+		request.Method, request.Path, request.BodySize)
 
 	response := s.Handler(request)
 	if response == nil {
@@ -259,11 +195,11 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 
 	conn.SetWriteDeadline(time.Now().Add(s.writeTimeout))
 
-	_, err = conn.Write([]byte(response.formatResponse()))
+	err = response.writeToConnection(conn)
 	if err != nil {
-		fmt.Println("Error writing to client:", err)
-		return
+		fmt.Println("Error writing streaming response:", err)
 	}
+
 }
 
 func (s *HTTPServer) sendErrorResponse(conn net.Conn, statusCode int, statusText string) {
@@ -276,10 +212,10 @@ func (s *HTTPServer) sendErrorResponse(conn net.Conn, statusCode int, statusText
 			"Content-Length": strconv.Itoa(len(statusText)),
 			"Connection":     "close",
 		},
-		Body: statusText,
+		Body: io.LimitReader(strings.NewReader(statusText), int64(len(statusText))),
 	}
 
-	conn.Write([]byte(response.formatResponse()))
+	response.writeToConnection(conn)
 }
 
 func (s *HTTPServer) Start() error {

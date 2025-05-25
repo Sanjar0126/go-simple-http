@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 
 	"github.com/Sanjar0126/go-simple-http/httpx"
 )
@@ -17,7 +19,6 @@ func main() {
 
 	server.Handler = func(req *httpx.HTTPRequest) *httpx.HTTPResponse {
 		fmt.Printf("Custom handler: %s %s\n", req.Method, req.Path)
-		fmt.Println(req.Body)
 		body := fmt.Sprintf("Hello, you requested %s %s", req.Path, req.Method)
 		return &httpx.HTTPResponse{
 			Version:    httpx.HTTP11Version,
@@ -27,7 +28,7 @@ func main() {
 				"Content-Type":   "text/plain",
 				"Content-Length": fmt.Sprintf("%d", len(body)),
 			},
-			Body: body,
+			Body: io.LimitReader(strings.NewReader(body), int64(len(body))),
 		}
 	}
 
