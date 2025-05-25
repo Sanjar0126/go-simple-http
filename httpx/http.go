@@ -175,7 +175,7 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 			contentLength := 0
 			headerLines := strings.Split(requestData.String(), "\r\n")
 			for _, headerLine := range headerLines {
-				if strings.HasPrefix(headerLine, "Content-Length:") {
+				if strings.HasPrefix(strings.ToLower(headerLine), "content-length:") {
 					parts := strings.SplitN(headerLine, ":", 2)
 					if len(parts) == 2 {
 						if length, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil {
