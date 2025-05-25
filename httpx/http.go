@@ -192,9 +192,7 @@ func (r *HTTPResponse) writeToConnection(conn net.Conn) error {
 			if err != nil {
 				return fmt.Errorf("error streaming body: %v", err)
 			}
-			fmt.Printf("Streaming fixed-length body of size %d bytes\n", r.BodySize)
 		} else {
-			fmt.Println("Streaming chunked body")
 			err := r.writeChunkedBody(conn)
 			if err != nil {
 				return fmt.Errorf("error writing chunked body: %v", err)
