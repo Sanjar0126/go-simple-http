@@ -137,7 +137,7 @@ func (s *HTTPServer) parseRequest(conn net.Conn) (*HTTPRequest, error) {
 		}
 	}
 
-	if contentLength, exists := req.Headers["content-length"]; exists {
+	if contentLength, exists := req.Headers[ContentLengthHeader]; exists {
 		if length, err := strconv.ParseInt(contentLength, 10, 64); err == nil {
 			req.BodySize = length
 
@@ -145,7 +145,7 @@ func (s *HTTPServer) parseRequest(conn net.Conn) (*HTTPRequest, error) {
 		} else {
 			return nil, fmt.Errorf("invalid content-length: %s", contentLength)
 		}
-	} else if transferEncoding, exists := req.Headers["transfer-encoding"]; exists &&
+	} else if transferEncoding, exists := req.Headers[TransferEncodingHeader]; exists &&
 		strings.ToLower(transferEncoding) == "chunked" {
 		req.IsChunked = true
 		req.Body = newChunkedReader(reader)
@@ -237,6 +237,46 @@ func (r *HTTPResponse) writeChunkedBody(conn net.Conn) error {
 	return nil
 }
 
+func (res *HTTPResponse) getContentLength() {
+	if res.Body == nil {
+		return
+	}
+
+	if seeker, ok := res.Body.(io.Seeker); ok {
+		currentPos, err := seeker.Seek(0, io.SeekCurrent)
+		if err != nil {
+			res.bodySize = -1
+			return
+		}
+
+		size, err := seeker.Seek(0, io.SeekEnd)
+		if err != nil {
+			res.bodySize = -1
+			return
+		}
+
+		_, err = seeker.Seek(currentPos, io.SeekStart)
+		if err != nil {
+			fmt.Println("Error seeking to original position:", err)
+			res.bodySize = -1
+			return
+		}
+
+		res.bodySize = size - currentPos
+		return
+	}
+
+	data, err := io.ReadAll(res.Body)
+	if err != nil {
+		fmt.Println("Error reading body:", err)
+		res.bodySize = -1
+		return
+	}
+
+	res.bodySize = int64(len(data))
+	res.Body = bytes.NewReader(data)
+}
+
 func (s *HTTPServer) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
@@ -264,6 +304,7 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 	}
 
 	response.version = request.Version
+	response.getContentLength()
 
 	conn.SetWriteDeadline(time.Now().Add(s.writeTimeout))
 
@@ -280,8 +321,8 @@ func (s *HTTPServer) sendErrorResponse(conn net.Conn, statusCode int, statusText
 		StatusCode: statusCode,
 		StatusText: statusText,
 		Headers: map[string]string{
-			"Content-Type": "text/plain",
-			"Connection":   "close",
+			ContentTypeHeader: "text/plain",
+			ConnectionHeader:   "close",
 		},
 		Body:     body,
 		bodySize: int64(len(statusText)),

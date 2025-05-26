@@ -47,8 +47,7 @@ func main() {
 			StatusCode: http.StatusOK,
 			StatusText: http.StatusText(http.StatusOK),
 			Headers: map[string]string{
-				"Content-Type":   "text/plain",
-				"Content-Length": fmt.Sprintf("%d", len(body)),
+				"content-Type":   "text/plain",
 			},
 			Body: io.LimitReader(strings.NewReader(body), int64(len(body))),
 		}
