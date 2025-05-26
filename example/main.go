@@ -44,7 +44,6 @@ func main() {
 		body := fmt.Sprintf("Saved %d bytes to %s", written, filename)
 
 		return &httpx.HTTPResponse{
-			Version:    httpx.HTTP11Version,
 			StatusCode: http.StatusOK,
 			StatusText: http.StatusText(http.StatusOK),
 			Headers: map[string]string{

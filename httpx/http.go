@@ -24,13 +24,12 @@ type HTTPRequest struct {
 }
 
 type HTTPResponse struct {
-	Version    string
 	StatusCode int
 	StatusText string
 	Headers    map[string]string
-
-	Body     io.Reader
-	BodySize int64
+	Body       io.Reader
+	bodySize   int64
+	version    string
 }
 
 type HandlerFunc func(*HTTPRequest) *HTTPResponse
@@ -159,7 +158,7 @@ func (s *HTTPServer) parseRequest(conn net.Conn) (*HTTPRequest, error) {
 }
 
 func (r *HTTPResponse) writeToConnection(conn net.Conn) error {
-	statusLine := fmt.Sprintf("%s %d %s\r\n", r.Version, r.StatusCode, r.StatusText)
+	statusLine := fmt.Sprintf("%s %d %s\r\n", r.version, r.StatusCode, r.StatusText)
 	if _, err := conn.Write([]byte(statusLine)); err != nil {
 		return fmt.Errorf("error writing status line: %v", err)
 	}
@@ -168,8 +167,8 @@ func (r *HTTPResponse) writeToConnection(conn net.Conn) error {
 		r.Headers = make(map[string]string)
 	}
 
-	if r.BodySize >= 0 {
-		r.Headers[ContentLengthHeader] = strconv.FormatInt(r.BodySize, 10)
+	if r.bodySize >= 0 {
+		r.Headers[ContentLengthHeader] = strconv.FormatInt(r.bodySize, 10)
 	} else if r.Body != nil {
 		r.Headers[TransferEncodingHeader] = "chunked"
 	}
@@ -186,7 +185,7 @@ func (r *HTTPResponse) writeToConnection(conn net.Conn) error {
 	}
 
 	if r.Body != nil {
-		if r.BodySize >= 0 {
+		if r.bodySize >= 0 {
 			// direct copy for fixed-length body
 			_, err := io.Copy(conn, r.Body)
 			if err != nil {
@@ -264,6 +263,8 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 		return
 	}
 
+	response.version = request.Version
+
 	conn.SetWriteDeadline(time.Now().Add(s.writeTimeout))
 
 	err = response.writeToConnection(conn)
@@ -275,7 +276,7 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 func (s *HTTPServer) sendErrorResponse(conn net.Conn, statusCode int, statusText string) {
 	body := strings.NewReader(statusText)
 	response := &HTTPResponse{
-		Version:    HTTP11Version,
+		version:    HTTP11Version,
 		StatusCode: statusCode,
 		StatusText: statusText,
 		Headers: map[string]string{
@@ -283,7 +284,7 @@ func (s *HTTPServer) sendErrorResponse(conn net.Conn, statusCode int, statusText
 			"Connection":   "close",
 		},
 		Body:     body,
-		BodySize: int64(len(statusText)),
+		bodySize: int64(len(statusText)),
 	}
 
 	response.writeToConnection(conn)
