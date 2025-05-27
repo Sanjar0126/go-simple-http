@@ -44,16 +44,23 @@ type HTTPServer struct {
 	readTimeout  time.Duration
 	writeTimeout time.Duration
 
+	keepAliveTimeout     time.Duration
+	maxKeepAliveRequests int
+	enableKeepAlive      bool
+
 	Handler HandlerFunc
 }
 
 type HTTPServerConfig struct {
-	Addr           string
-	Port           string
-	MaxRequestSize int64
-	MaxHeaderSize  int64
-	ReadTimeout    time.Duration
-	WriteTimeout   time.Duration
+	Addr                 string
+	Port                 string
+	MaxRequestSize       int64
+	MaxHeaderSize        int64
+	ReadTimeout          time.Duration
+	WriteTimeout         time.Duration
+	KeepAliveTimeout     time.Duration
+	MaxKeepAliveRequests int
+	EnableKeepAlive      bool
 }
 
 func NewHTTPServer(cfg HTTPServerConfig) *HTTPServer {
@@ -63,21 +70,29 @@ func NewHTTPServer(cfg HTTPServerConfig) *HTTPServer {
 	if cfg.MaxHeaderSize == 0 {
 		cfg.MaxHeaderSize = DefaultMaxHeaderSize
 	}
-
 	if cfg.ReadTimeout == 0 {
 		cfg.ReadTimeout = 30 * time.Second
 	}
 	if cfg.WriteTimeout == 0 {
 		cfg.WriteTimeout = 30 * time.Second
 	}
+	if cfg.KeepAliveTimeout == 0 {
+		cfg.KeepAliveTimeout = DefaultKeepAliveTimeout
+	}
+	if cfg.MaxKeepAliveRequests == 0 {
+		cfg.MaxKeepAliveRequests = DefaultMaxKeepAliveRequests
+	}
 
 	return &HTTPServer{
-		addr:           cfg.Addr,
-		port:           cfg.Port,
-		maxRequestSize: cfg.MaxRequestSize,
-		maxHeaderSize:  cfg.MaxHeaderSize,
-		readTimeout:    cfg.ReadTimeout,
-		writeTimeout:   cfg.WriteTimeout,
+		addr:                 cfg.Addr,
+		port:                 cfg.Port,
+		maxRequestSize:       cfg.MaxRequestSize,
+		maxHeaderSize:        cfg.MaxHeaderSize,
+		readTimeout:          cfg.ReadTimeout,
+		writeTimeout:         cfg.WriteTimeout,
+		keepAliveTimeout:     cfg.KeepAliveTimeout,
+		maxKeepAliveRequests: cfg.MaxKeepAliveRequests,
+		enableKeepAlive:      cfg.EnableKeepAlive,
 	}
 }
 
@@ -322,7 +337,7 @@ func (s *HTTPServer) sendErrorResponse(conn net.Conn, statusCode int, statusText
 		StatusText: statusText,
 		Headers: map[string]string{
 			ContentTypeHeader: "text/plain",
-			ConnectionHeader:   "close",
+			ConnectionHeader:  "close",
 		},
 		Body:     body,
 		bodySize: int64(len(statusText)),
