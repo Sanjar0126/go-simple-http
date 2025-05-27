@@ -182,10 +182,12 @@ func (r *HTTPResponse) writeToConnection(conn net.Conn) error {
 		r.Headers = make(map[string]string)
 	}
 
-	if r.bodySize >= 0 {
-		r.Headers[ContentLengthHeader] = strconv.FormatInt(r.bodySize, 10)
-	} else if r.Body != nil {
+	useChunked := r.bodySize < 0 && r.Body != nil
+
+	if useChunked {
 		r.Headers[TransferEncodingHeader] = "chunked"
+	} else if r.bodySize >= 0 {
+		r.Headers[ContentLengthHeader] = strconv.FormatInt(r.bodySize, 10)
 	}
 
 	for key, value := range r.Headers {
@@ -200,16 +202,16 @@ func (r *HTTPResponse) writeToConnection(conn net.Conn) error {
 	}
 
 	if r.Body != nil {
-		if r.bodySize >= 0 {
+		if useChunked {
+			err := r.writeChunkedBody(conn)
+			if err != nil {
+				return fmt.Errorf("error writing chunked body: %v", err)
+			}
+		} else {
 			// direct copy for fixed-length body
 			_, err := io.Copy(conn, r.Body)
 			if err != nil {
 				return fmt.Errorf("error streaming body: %v", err)
-			}
-		} else {
-			err := r.writeChunkedBody(conn)
-			if err != nil {
-				return fmt.Errorf("error writing chunked body: %v", err)
 			}
 		}
 	}
