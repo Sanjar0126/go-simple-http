@@ -368,14 +368,14 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 			if response.Headers == nil {
 				response.Headers = make(map[string]string)
 			}
-			response.Headers[ConnectionHeader] = "keep-alive"
+			response.Headers[ConnectionHeader] = KeepAliveHeader
 			response.Headers[KeepAliveHeader] = fmt.Sprintf("timeout=%d, max=%d",
 				int(s.keepAliveTimeout.Seconds()), s.maxKeepAliveRequests-requestCount)
 		} else {
 			if response.Headers == nil {
 				response.Headers = make(map[string]string)
 			}
-			response.Headers[ConnectionHeader] = "close"
+			response.Headers[ConnectionHeader] = CloseHeader
 		}
 
 		conn.SetWriteDeadline(time.Now().Add(s.writeTimeout))
@@ -393,7 +393,9 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 		startTime = time.Now()
 	}
 
-	fmt.Printf("Connection closed for %s after %d requests\n", conn.RemoteAddr(), requestCount)
+	if s.enableKeepAlive && requestCount > 0 {
+		fmt.Printf("Connection closed for %s after %d requests\n", conn.RemoteAddr(), requestCount)
+	}
 }
 
 func (s *HTTPServer) sendErrorResponse(conn net.Conn, statusCode int, statusText string, keepAlive bool) {
@@ -404,9 +406,9 @@ func (s *HTTPServer) sendErrorResponse(conn net.Conn, statusCode int, statusText
 	}
 
 	if keepAlive {
-		headers[ConnectionHeader] = "keep-alive"
+		headers[ConnectionHeader] = KeepAliveHeader
 	} else {
-		headers[ConnectionHeader] = "close"
+		headers[ConnectionHeader] = CloseHeader
 	}
 
 	response := &HTTPResponse{

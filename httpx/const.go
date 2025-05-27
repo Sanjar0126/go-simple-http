@@ -10,7 +10,7 @@ const (
 	DefaultMaxRequestSize = 1024 * 1024 // 1MB
 	DefaultMaxHeaderSize  = 8192        // 8KB
 
-	DefaultKeepAliveTimeout     = 60 * time.Second 
+	DefaultKeepAliveTimeout     = 60 * time.Second
 	DefaultMaxKeepAliveRequests = 100
 
 	DefaultChunkSize = 8192
@@ -20,6 +20,7 @@ const (
 	ConnectionHeader       = "connection"
 	TransferEncodingHeader = "transfer-encoding"
 	KeepAliveHeader        = "keep-alive"
+	CloseHeader            = "close"
 	UpgradeHeader          = "upgrade"
 	AcceptEncodingHeader   = "accept-encoding"
 	AcceptLanguageHeader   = "accept-language"
