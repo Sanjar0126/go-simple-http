@@ -292,55 +292,130 @@ func (res *HTTPResponse) getContentLength() {
 	res.Body = bytes.NewReader(data)
 }
 
+func (s *HTTPServer) shouldKeepConnectionAlive(req *HTTPRequest, res *HTTPResponse) bool {
+	if !s.enableKeepAlive {
+		return false
+	}
+
+	if req.Version == HTTP11Version {
+		if connHeader, exists := req.Headers[ConnectionHeader]; exists {
+			return strings.ToLower(connHeader) != "close"
+		}
+		return true
+	} else if req.Version == HTTP10Version {
+		if connHeader, exists := req.Headers[ConnectionHeader]; exists {
+			return strings.ToLower(connHeader) == "keep-alive"
+		}
+		return false
+	}
+
+	return false
+}
+
 func (s *HTTPServer) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
-	conn.SetReadDeadline(time.Now().Add(s.readTimeout))
-	conn.SetWriteDeadline(time.Now().Add(s.writeTimeout))
-
 	fmt.Println("Client connected:", conn.RemoteAddr())
 
-	request, err := s.parseRequest(conn)
-	if err != nil {
-		fmt.Printf("Error parsing streaming request: %v\n", err)
-		s.sendErrorResponse(conn, http.StatusBadRequest, "Bad Request")
-		return
+	requestCount := 0
+	startTime := time.Now()
+
+	for {
+		if s.enableKeepAlive {
+			if requestCount >= s.maxKeepAliveRequests {
+				fmt.Printf("Max keep-alive requests reached for %s\n", conn.RemoteAddr())
+				break
+			}
+
+			if time.Since(startTime) > s.keepAliveTimeout {
+				fmt.Printf("Keep-alive timeout reached for %s\n", conn.RemoteAddr())
+				break
+			}
+		}
+
+		conn.SetReadDeadline(time.Now().Add(s.readTimeout))
+
+		request, err := s.parseRequest(conn)
+		if err != nil {
+			if s.enableKeepAlive && requestCount > 0 {
+				fmt.Printf("Connection closed by client %s after %d requests\n", conn.RemoteAddr(), requestCount)
+				break
+			}
+			fmt.Printf("Error parsing request: %v\n", err)
+			s.sendErrorResponse(conn, http.StatusBadRequest, "Bad Request", false)
+			break
+		}
+
+		requestCount++
+
+		if s.Handler == nil {
+			s.sendErrorResponse(conn, http.StatusInternalServerError, "No handler defined", false)
+			break
+		}
+
+		response := s.Handler(request)
+		if response == nil {
+			s.sendErrorResponse(conn, http.StatusInternalServerError, "Handler returned nil", false)
+			break
+		}
+
+		shouldKeepAlive := s.shouldKeepConnectionAlive(request, response)
+
+		response.version = request.Version
+		response.getContentLength()
+
+		if shouldKeepAlive {
+			if response.Headers == nil {
+				response.Headers = make(map[string]string)
+			}
+			response.Headers[ConnectionHeader] = "keep-alive"
+			response.Headers[KeepAliveHeader] = fmt.Sprintf("timeout=%d, max=%d",
+				int(s.keepAliveTimeout.Seconds()), s.maxKeepAliveRequests-requestCount)
+		} else {
+			if response.Headers == nil {
+				response.Headers = make(map[string]string)
+			}
+			response.Headers[ConnectionHeader] = "close"
+		}
+
+		conn.SetWriteDeadline(time.Now().Add(s.writeTimeout))
+
+		err = response.writeToConnection(conn)
+		if err != nil {
+			fmt.Printf("Error writing response: %v\n", err)
+			break
+		}
+
+		if !shouldKeepAlive {
+			break
+		}
+
+		startTime = time.Now()
 	}
 
-	if s.Handler == nil {
-		s.sendErrorResponse(conn, http.StatusInternalServerError, "No handler defined")
-		return
-	}
-
-	response := s.Handler(request)
-	if response == nil {
-		s.sendErrorResponse(conn, http.StatusInternalServerError, "Handler returned nil")
-		return
-	}
-
-	response.version = request.Version
-	response.getContentLength()
-
-	conn.SetWriteDeadline(time.Now().Add(s.writeTimeout))
-
-	err = response.writeToConnection(conn)
-	if err != nil {
-		fmt.Printf("Error writing streaming response: %v\n", err)
-	}
+	fmt.Printf("Connection closed for %s after %d requests\n", conn.RemoteAddr(), requestCount)
 }
 
-func (s *HTTPServer) sendErrorResponse(conn net.Conn, statusCode int, statusText string) {
+func (s *HTTPServer) sendErrorResponse(conn net.Conn, statusCode int, statusText string, keepAlive bool) {
 	body := strings.NewReader(statusText)
+
+	headers := map[string]string{
+		ContentTypeHeader: "text/plain",
+	}
+
+	if keepAlive {
+		headers[ConnectionHeader] = "keep-alive"
+	} else {
+		headers[ConnectionHeader] = "close"
+	}
+
 	response := &HTTPResponse{
 		version:    HTTP11Version,
 		StatusCode: statusCode,
 		StatusText: statusText,
-		Headers: map[string]string{
-			ContentTypeHeader: "text/plain",
-			ConnectionHeader:  "close",
-		},
-		Body:     body,
-		bodySize: int64(len(statusText)),
+		Headers:    headers,
+		Body:       body,
+		bodySize:   int64(len(statusText)),
 	}
 
 	response.writeToConnection(conn)
