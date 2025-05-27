@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -9,10 +12,16 @@ import (
 )
 
 func main() {
+	err := os.Chdir("temp")
+	if err != nil {
+		os.Mkdir("temp", 0755)
+		os.Chdir("temp")
+	}
+
 	server := httpx.NewHTTPServer(httpx.HTTPServerConfig{
 		Addr:                 "localhost",
 		Port:                 "8080",
-		EnableKeepAlive:      false,
+		EnableKeepAlive:      true,
 		KeepAliveTimeout:     20 * time.Second, // Keep connection open for 20 seconds
 		MaxKeepAliveRequests: 100,              // Max 100 requests per connection
 		ReadTimeout:          30 * time.Second,
@@ -53,6 +62,34 @@ func main() {
 					"Connection":   "close",
 				},
 				Body: strings.NewReader("Connection will be closed after this response"),
+			}
+		case "/upload":
+			safeName := strings.ReplaceAll(strings.Trim(req.Path, "/"), "/", "_")
+			if safeName == "" {
+				safeName = "root"
+			}
+
+			filename := fmt.Sprintf("%s_%d", safeName, time.Now().UnixNano())
+			file, err := os.Create(filename)
+			if err != nil {
+				fmt.Printf("Error creating file: %v\n", err)
+			}
+			defer file.Close()
+
+			written, err := io.Copy(file, req.Body)
+			if err != nil {
+				fmt.Printf("Error writing to file: %v\n", err)
+			}
+
+			body := fmt.Sprintf("Saved %d bytes to %s", written, filename)
+
+			return &httpx.HTTPResponse{
+				StatusCode: http.StatusOK,
+				StatusText: http.StatusText(http.StatusOK),
+				Headers: map[string]string{
+					"content-Type": "text/plain",
+				},
+				Body: io.LimitReader(strings.NewReader(body), int64(len(body))),
 			}
 		default:
 			return &httpx.HTTPResponse{
