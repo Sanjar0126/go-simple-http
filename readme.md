@@ -9,7 +9,7 @@ A simple HTTP server implementation using Go net package's tcp.
 
 ---
 
-## 🔜 Basic HTTP/1.1 Features
+## ✅ Basic HTTP/1.1 Features
 - ✅ **Header Parsing**
   - Parse request headers into a normalized map (case-insensitive).
 - ✅ **Persistent Connections**
