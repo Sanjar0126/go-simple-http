@@ -12,14 +12,12 @@ A simple HTTP server implementation using Go net package's tcp.
 ## 🔜 Basic HTTP/1.1 Features
 - ✅ **Header Parsing**
   - Parse request headers into a normalized map (case-insensitive).
-- [ ] **Persistent Connections**
+- ✅ **Persistent Connections**
   - Support `Connection: keep-alive` and multiple requests per connection.
-- [ ] **Chunked Transfer-Encoding (Optional)**
+- ✅ **Chunked Transfer-Encoding (Optional)**
   - Decode chunked request bodies.
   - Encode responses in chunked format if body length is unknown.
-- [ ] **Content-Length**
-  - Correctly read request bodies and set `Content-Length` in responses.
-
+  - 
 ---
 
 ## 🔒 Routing and Dynamic Responses
@@ -33,8 +31,6 @@ A simple HTTP server implementation using Go net package's tcp.
 ---
 
 ## 🔒 Advanced HTTP/1.1 Features
-- [ ] **Form and JSON Body Parsing**
-  - Parse `application/x-www-form-urlencoded` and `application/json` bodies.
 - [ ] **File Serving**
   - Serve static files with correct MIME types.
 - [ ] **Cookie Handling**
