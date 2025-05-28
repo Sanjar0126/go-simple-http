@@ -17,7 +17,6 @@ A simple HTTP server implementation using Go net package's tcp.
 - ✅ **Chunked Transfer-Encoding (Optional)**
   - Decode chunked request bodies.
   - Encode responses in chunked format if body length is unknown.
-  - 
 ---
 
 ## 🔒 Routing and Dynamic Responses
